@@ -4,7 +4,8 @@
   "main": "price-alert.js",
   "scripts": {
     "start": "node price-alert.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "chmod +x render-build.sh && ./render-build.sh"
   },
   "keywords": [],
   "author": "",

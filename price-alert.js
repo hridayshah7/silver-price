@@ -1,6 +1,4 @@
-// Set puppeteer cache directory
-process.env.PUPPETEER_CACHE_DIR = '/tmp/puppeteer-cache';
-
+// Import puppeteer with browser fetcher capabilities
 const puppeteer = require('puppeteer');
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
@@ -77,13 +75,12 @@ bot.on('message', (msg) => {
 (async () => {
     console.log("[INFO] Starting the price monitoring bot...");
     
-    // Use puppeteer with the correct executable path configuration for Render
+    // Use puppeteer's built-in browser
     const browser = await puppeteer.launch({
-        headless: true,
+        headless: "new",
         ignoreHTTPSErrors: true,
         userDataDir: '/tmp/puppeteer_user_data',
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
-                         '/usr/bin/google-chrome',  // Common path on Linux servers
+        // Don't specify executablePath - let Puppeteer find it
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
