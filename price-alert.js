@@ -1,3 +1,4 @@
+process.env.PUPPETEER_CACHE_DIR = '/tmp/puppeteer-cache';
 const puppeteer = require('puppeteer');
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
