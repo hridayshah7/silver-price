@@ -1,6 +1,7 @@
+// Set puppeteer cache directory
 process.env.PUPPETEER_CACHE_DIR = '/tmp/puppeteer-cache';
-const puppeteer = require('puppeteer');
 
+const puppeteer = require('puppeteer');
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
@@ -74,32 +75,50 @@ bot.on('message', (msg) => {
 });
 
 (async () => {
+    console.log("[INFO] Starting the price monitoring bot...");
+    
+    // Use puppeteer with the correct executable path configuration for Render
     const browser = await puppeteer.launch({
         headless: true,
         ignoreHTTPSErrors: true,
-        userDataDir: './puppeteer_data',
+        userDataDir: '/tmp/puppeteer_user_data',
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
+                         '/usr/bin/google-chrome',  // Common path on Linux servers
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
             '--disable-blink-features=AutomationControlled'
         ]
     });
 
+    console.log("[INFO] Browser launched successfully");
+    
     const page = await browser.newPage();
+    
+    // Set a user agent to avoid detection
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36');
+    
+    console.log("[INFO] Navigating to website...");
     await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log("[INFO] Website loaded");
 
     try {
         await page.waitForSelector('#proceed-button', { timeout: 5000 });
         await page.click('#proceed-button');
         await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    } catch {
+        console.log("[INFO] Clicked proceed button");
+    } catch (err) {
         console.log('[INFO] Proceed button not found or already passed.');
     }
 
     sendTelegramMessage('[INFO] Bot started and monitoring prices.');
+    console.log("[INFO] Bot initialized and ready to monitor prices");
 
     while (true) {
         try {
+            console.log("[INFO] Reloading page to get fresh prices...");
             await page.reload({ waitUntil: 'domcontentloaded' });
             await page.waitForSelector('.m_prodct', { timeout: 30000 });
 
@@ -133,7 +152,7 @@ bot.on('message', (msg) => {
                     const message = `[ALERT] ${type} ASK price dropped to ₹${ask} (target was ₹${target})!`;
                     console.log(message);
                     sendTelegramMessage(message);
-                    targets = targets.filter(t => t !== target);  // ✅ Remove the hit target
+                    targets = targets.filter(t => t !== target);  // Remove the hit target
                 }
             }
             
@@ -144,4 +163,3 @@ bot.on('message', (msg) => {
         await new Promise(r => setTimeout(r, CHECK_INTERVAL));
     }
 })();
-
