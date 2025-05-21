@@ -1,5 +1,6 @@
 process.env.PUPPETEER_CACHE_DIR = '/tmp/puppeteer-cache';
 const puppeteer = require('puppeteer');
+
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
@@ -12,7 +13,7 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
 let targets = [];
 let currentAskPrice = null;
-const CHECK_INTERVAL = 1000;
+const CHECK_INTERVAL = 10000;
 
 function sendTelegramMessage(text) {
     bot.sendMessage(TELEGRAM_CHAT_ID, text).catch(console.error);
@@ -74,7 +75,7 @@ bot.on('message', (msg) => {
 
 (async () => {
     const browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         ignoreHTTPSErrors: true,
         userDataDir: './puppeteer_data',
         args: [
