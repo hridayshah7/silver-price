@@ -1,7 +1,79 @@
 // Import puppeteer with browser fetcher capabilities
 const puppeteer = require('puppeteer');
 const TelegramBot = require('node-telegram-bot-api');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
+
+// Find Chrome in the Puppeteer cache
+const findChromePath = () => {
+    // Look for Chrome path in our saved file
+    const chromePathFile = '/opt/render/project/.render/chrome-path.txt';
+    if (fs.existsSync(chromePathFile)) {
+        try {
+            const chromePath = fs.readFileSync(chromePathFile, 'utf8').trim();
+            console.log("Found Chrome path in file:", chromePath);
+            if (fs.existsSync(chromePath)) {
+                return chromePath;
+            } else {
+                console.log("Chrome path from file doesn't exist on disk");
+            }
+        } catch (error) {
+            console.error("Error reading Chrome path file:", error);
+        }
+    }
+    
+    // Look for the symlink we created during build
+    const renderSymlink = '/opt/render/project/.render/chrome';
+    if (fs.existsSync(renderSymlink)) {
+        console.log("Found Chrome symlink at", renderSymlink);
+        return renderSymlink;
+    }
+    
+    const PUPPETEER_CACHE = '/opt/render/.cache/puppeteer';
+    // Look for Chrome in the Puppeteer cache
+    if (fs.existsSync(PUPPETEER_CACHE)) {
+        console.log("Puppeteer cache directory exists");
+        // Find chrome executable in the cache
+        try {
+            // Use glob pattern to find chrome executable
+            const chromePaths = [];
+            const searchDir = (dir) => {
+                const files = fs.readdirSync(dir);
+                for (const file of files) {
+                    const fullPath = path.join(dir, file);
+                    if (fs.statSync(fullPath).isDirectory()) {
+                        searchDir(fullPath);
+                    } else if (file === 'chrome' || file === 'chrome.exe') {
+                        chromePaths.push(fullPath);
+                    }
+                }
+            };
+            searchDir(PUPPETEER_CACHE);
+            
+            if (chromePaths.length > 0) {
+                console.log("Found Chrome paths:", chromePaths);
+                return chromePaths[0]; // Return the first Chrome path found
+            }
+        } catch (error) {
+            console.error("Error searching for Chrome:", error);
+        }
+    }
+    
+    // Try puppeteer's package installation
+    try {
+        const puppeteerPath = require.resolve('puppeteer');
+        const packagePath = path.join(path.dirname(puppeteerPath), '.local-chrome', 'chrome-linux', 'chrome');
+        if (fs.existsSync(packagePath)) {
+            console.log("Found Chrome in puppeteer package:", packagePath);
+            return packagePath;
+        }
+    } catch (error) {
+        console.error("Error checking puppeteer package:", error);
+    }
+    
+    return null;
+};
 
 const URL = 'http://nakodabullion.com/';
 
@@ -75,12 +147,15 @@ bot.on('message', (msg) => {
 (async () => {
     console.log("[INFO] Starting the price monitoring bot...");
     
-    // Use puppeteer's built-in browser
-    const browser = await puppeteer.launch({
+    // Find Chrome path
+    const chromePath = findChromePath();
+    console.log("Chrome path:", chromePath);
+    
+    // Puppeteer launch configuration
+    const launchOptions = {
         headless: "new",
         ignoreHTTPSErrors: true,
         userDataDir: '/tmp/puppeteer_user_data',
-        // Don't specify executablePath - let Puppeteer find it
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -88,7 +163,18 @@ bot.on('message', (msg) => {
             '--disable-gpu',
             '--disable-blink-features=AutomationControlled'
         ]
-    });
+    };
+    
+    // Set executable path if found
+    if (chromePath) {
+        console.log("Using Chrome at:", chromePath);
+        launchOptions.executablePath = chromePath;
+    } else {
+        console.log("No Chrome path found, using default");
+    }
+    
+    // Launch browser
+    const browser = await puppeteer.launch(launchOptions);
 
     console.log("[INFO] Browser launched successfully");
     

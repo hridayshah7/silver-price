@@ -20,5 +20,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "overrides": {
+    "puppeteer": {
+      "puppeteer-core": "24.9.0"
+    }
   }
 }
