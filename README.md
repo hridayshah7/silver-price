@@ -1,1 +1,2 @@
 # silver
+# silver-price-bot
