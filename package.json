@@ -1,29 +1,24 @@
 {
   "name": "silver",
   "version": "1.0.0",
-  "main": "price-alert.js",
+  "main": "index.js",
   "scripts": {
     "start": "node price-alert.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "chmod +x render-build.sh && ./render-build.sh"
+    "postinstall": "npx puppeteer install chrome"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Silver price monitoring bot for Telegram",
+  "description": "",
   "dependencies": {
     "axios": "^1.9.0",
     "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "node-telegram-bot-api": "^0.66.0",
     "play-sound": "^1.1.6",
-    "puppeteer": "^24.9.0"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "overrides": {
-    "puppeteer": {
-      "puppeteer-core": "24.9.0"
-    }
+    "puppeteer": "^24.9.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }

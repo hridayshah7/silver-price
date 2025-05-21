@@ -1,79 +1,6 @@
-// Import puppeteer with browser fetcher capabilities
 const puppeteer = require('puppeteer');
 const TelegramBot = require('node-telegram-bot-api');
-const path = require('path');
-const fs = require('fs');
 require('dotenv').config();
-
-// Find Chrome in the Puppeteer cache
-const findChromePath = () => {
-    // Look for Chrome path in our saved file
-    const chromePathFile = '/opt/render/project/.render/chrome-path.txt';
-    if (fs.existsSync(chromePathFile)) {
-        try {
-            const chromePath = fs.readFileSync(chromePathFile, 'utf8').trim();
-            console.log("Found Chrome path in file:", chromePath);
-            if (fs.existsSync(chromePath)) {
-                return chromePath;
-            } else {
-                console.log("Chrome path from file doesn't exist on disk");
-            }
-        } catch (error) {
-            console.error("Error reading Chrome path file:", error);
-        }
-    }
-    
-    // Look for the symlink we created during build
-    const renderSymlink = '/opt/render/project/.render/chrome';
-    if (fs.existsSync(renderSymlink)) {
-        console.log("Found Chrome symlink at", renderSymlink);
-        return renderSymlink;
-    }
-    
-    const PUPPETEER_CACHE = '/opt/render/.cache/puppeteer';
-    // Look for Chrome in the Puppeteer cache
-    if (fs.existsSync(PUPPETEER_CACHE)) {
-        console.log("Puppeteer cache directory exists");
-        // Find chrome executable in the cache
-        try {
-            // Use glob pattern to find chrome executable
-            const chromePaths = [];
-            const searchDir = (dir) => {
-                const files = fs.readdirSync(dir);
-                for (const file of files) {
-                    const fullPath = path.join(dir, file);
-                    if (fs.statSync(fullPath).isDirectory()) {
-                        searchDir(fullPath);
-                    } else if (file === 'chrome' || file === 'chrome.exe') {
-                        chromePaths.push(fullPath);
-                    }
-                }
-            };
-            searchDir(PUPPETEER_CACHE);
-            
-            if (chromePaths.length > 0) {
-                console.log("Found Chrome paths:", chromePaths);
-                return chromePaths[0]; // Return the first Chrome path found
-            }
-        } catch (error) {
-            console.error("Error searching for Chrome:", error);
-        }
-    }
-    
-    // Try puppeteer's package installation
-    try {
-        const puppeteerPath = require.resolve('puppeteer');
-        const packagePath = path.join(path.dirname(puppeteerPath), '.local-chrome', 'chrome-linux', 'chrome');
-        if (fs.existsSync(packagePath)) {
-            console.log("Found Chrome in puppeteer package:", packagePath);
-            return packagePath;
-        }
-    } catch (error) {
-        console.error("Error checking puppeteer package:", error);
-    }
-    
-    return null;
-};
 
 const URL = 'http://nakodabullion.com/';
 
@@ -84,11 +11,15 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
 let targets = [];
 let currentAskPrice = null;
-const CHECK_INTERVAL = 10000;
+const CHECK_INTERVAL = 1000;
 
 function sendTelegramMessage(text) {
-    bot.sendMessage(TELEGRAM_CHAT_ID, text).catch(console.error);
+    const isAlert = text.startsWith('[ALERT]');
+    bot.sendMessage(TELEGRAM_CHAT_ID, text, {
+        disable_notification: !isAlert  // 🔔 Sound only for [ALERT] messages
+    }).catch(console.error);
 }
+
 
 bot.on('message', (msg) => {
     if (msg.chat.id.toString() !== TELEGRAM_CHAT_ID) return;
@@ -145,63 +76,32 @@ bot.on('message', (msg) => {
 });
 
 (async () => {
-    console.log("[INFO] Starting the price monitoring bot...");
-    
-    // Find Chrome path
-    const chromePath = findChromePath();
-    console.log("Chrome path:", chromePath);
-    
-    // Puppeteer launch configuration
-    const launchOptions = {
-        headless: "new",
+    const browser = await puppeteer.launch({
+        headless: 'new',
         ignoreHTTPSErrors: true,
-        userDataDir: '/tmp/puppeteer_user_data',
+        userDataDir: './puppeteer_data',
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
             '--disable-blink-features=AutomationControlled'
         ]
-    };
-    
-    // Set executable path if found
-    if (chromePath) {
-        console.log("Using Chrome at:", chromePath);
-        launchOptions.executablePath = chromePath;
-    } else {
-        console.log("No Chrome path found, using default");
-    }
-    
-    // Launch browser
-    const browser = await puppeteer.launch(launchOptions);
+    });
 
-    console.log("[INFO] Browser launched successfully");
-    
     const page = await browser.newPage();
-    
-    // Set a user agent to avoid detection
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36');
-    
-    console.log("[INFO] Navigating to website...");
     await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    console.log("[INFO] Website loaded");
 
     try {
         await page.waitForSelector('#proceed-button', { timeout: 5000 });
         await page.click('#proceed-button');
         await page.waitForNavigation({ waitUntil: 'networkidle2' });
-        console.log("[INFO] Clicked proceed button");
-    } catch (err) {
+    } catch {
         console.log('[INFO] Proceed button not found or already passed.');
     }
 
     sendTelegramMessage('[INFO] Bot started and monitoring prices.');
-    console.log("[INFO] Bot initialized and ready to monitor prices");
 
     while (true) {
         try {
-            console.log("[INFO] Reloading page to get fresh prices...");
             await page.reload({ waitUntil: 'domcontentloaded' });
             await page.waitForSelector('.m_prodct', { timeout: 30000 });
 
@@ -235,7 +135,7 @@ bot.on('message', (msg) => {
                     const message = `[ALERT] ${type} ASK price dropped to ₹${ask} (target was ₹${target})!`;
                     console.log(message);
                     sendTelegramMessage(message);
-                    targets = targets.filter(t => t !== target);  // Remove the hit target
+                    targets = targets.filter(t => t !== target);  // ✅ Remove the hit target
                 }
             }
             
@@ -246,3 +146,4 @@ bot.on('message', (msg) => {
         await new Promise(r => setTimeout(r, CHECK_INTERVAL));
     }
 })();
+
